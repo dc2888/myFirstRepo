@@ -14,6 +14,7 @@ export const MAX_POWER = 6;
 export const MAX_BUBBLES = 5;
 export const SPEED_STEP = 18;
 export const ITEM_DROP_CHANCE = 0.35;
+export const TURN_ASSIST_DISTANCE = 16;
 
 export const ITEM_TYPES = Object.freeze({
   POWER: 'power',
@@ -187,6 +188,30 @@ export function canPlayerOccupyPosition(state, player, x, y, radius) {
     }
   }
   return true;
+}
+
+export function resolvePlayerMove(state, player, dx, dy, radius, assistDistance = TURN_ASSIST_DISTANCE) {
+  if (player.status !== 'alive') return { x: player.x, y: player.y, moved: false };
+
+  let x = player.x;
+  let y = player.y;
+  let moved = false;
+
+  if (dx !== 0) {
+    const next = resolveAxisMove(state, player, x, y, dx, 0, radius, assistDistance);
+    x = next.x;
+    y = next.y;
+    moved ||= next.moved;
+  }
+
+  if (dy !== 0) {
+    const next = resolveAxisMove(state, player, x, y, 0, dy, radius, assistDistance);
+    x = next.x;
+    y = next.y;
+    moved ||= next.moved;
+  }
+
+  return { x, y, moved };
 }
 
 export function updatePlayerPositionState(state, player, radius) {
@@ -473,6 +498,47 @@ function uniqueCells(cells) {
     seen.add(key);
     return true;
   });
+}
+
+function resolveAxisMove(state, player, x, y, dx, dy, radius, assistDistance) {
+  const targetX = x + dx;
+  const targetY = y + dy;
+  if (canPlayerOccupyPosition(state, player, targetX, targetY, radius)) {
+    return { x: targetX, y: targetY, moved: true };
+  }
+
+  const assist = perpendicularCenteringOffset(x, y, dx, dy, assistDistance);
+  if (!assist) return { x, y, moved: false };
+
+  const assistedX = targetX + assist.x;
+  const assistedY = targetY + assist.y;
+  if (canPlayerOccupyPosition(state, player, assistedX, assistedY, radius)) {
+    return { x: assistedX, y: assistedY, moved: true };
+  }
+
+  const centeredX = x + assist.x;
+  const centeredY = y + assist.y;
+  if (canPlayerOccupyPosition(state, player, centeredX, centeredY, radius)) {
+    return { x: centeredX, y: centeredY, moved: true };
+  }
+
+  return { x, y, moved: false };
+}
+
+function perpendicularCenteringOffset(x, y, dx, dy, assistDistance) {
+  if (dy !== 0) {
+    const centerX = Math.floor(x / CELL_SIZE) * CELL_SIZE + CELL_SIZE / 2;
+    const offsetX = centerX - x;
+    if (Math.abs(offsetX) > 0 && Math.abs(offsetX) <= assistDistance) return { x: offsetX, y: 0 };
+  }
+
+  if (dx !== 0) {
+    const centerY = Math.floor(y / CELL_SIZE) * CELL_SIZE + CELL_SIZE / 2;
+    const offsetY = centerY - y;
+    if (Math.abs(offsetY) > 0 && Math.abs(offsetY) <= assistDistance) return { x: 0, y: offsetY };
+  }
+
+  return null;
 }
 
 function footprintOverlapsCell(x, y, radius, col, row) {

@@ -15,6 +15,7 @@ import {
   canPlayerOccupyPosition,
   explodeBubble,
   placeBubble,
+  resolvePlayerMove,
   tickTraps,
   tryCollectItem,
   useHeldItem,
@@ -68,6 +69,34 @@ test('player can walk out of a newly placed bubble but cannot re-enter after lea
 
   assert.equal(player.passThroughBubbleId, null);
   assert.equal(canPlayerOccupyPosition(state, player, 95, 72, 16), false);
+});
+
+test('movement assist nudges a player into a corridor when turning near a wall corner', () => {
+  const state = createInitialState({ mode: 'duel', seed: 1, softFill: false });
+  const player = state.players[0];
+  const radius = 16;
+  player.x = 1 * CELL_SIZE + CELL_SIZE / 2 + 13;
+  player.y = 1 * CELL_SIZE + CELL_SIZE / 2;
+
+  const move = resolvePlayerMove(state, player, 0, CELL_SIZE / 2, radius);
+
+  assert.equal(move.moved, true);
+  assert.ok(move.y > player.y, 'player should keep moving through the turn');
+  assert.ok(move.x < player.x, 'player should be nudged back toward the corridor center');
+});
+
+test('movement assist does not let a player pass through blocking walls', () => {
+  const state = createInitialState({ mode: 'duel', seed: 1, softFill: false });
+  const player = state.players[0];
+  const radius = 16;
+  player.x = 1 * CELL_SIZE + CELL_SIZE / 2;
+  player.y = 1 * CELL_SIZE + CELL_SIZE / 2;
+
+  const move = resolvePlayerMove(state, player, -CELL_SIZE, 0, radius);
+
+  assert.equal(move.moved, false);
+  assert.equal(move.x, player.x);
+  assert.equal(move.y, player.y);
 });
 
 test('explosion spreads in a cross, destroys soft blocks, stops at blockers, and can chain bubbles', () => {

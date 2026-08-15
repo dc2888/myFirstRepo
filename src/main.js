@@ -5,7 +5,6 @@ import {
   GRID_ROWS,
   ITEM_TYPES,
   MATCH_DURATION_MS,
-  canPlayerOccupyPosition,
   cellKey,
   chooseWinner,
   createInitialState,
@@ -17,11 +16,13 @@ import {
   placeBubble,
   playerAtCell,
   pruneExplosions,
+  resolvePlayerMove,
   tickTraps,
   tryCollectItem,
   useHeldItem,
   updatePlayerPositionState,
 } from './core/gameRules.js';
+import { createWalkPose } from './core/walkPose.js';
 
 const BOARD_WIDTH = GRID_COLS * CELL_SIZE;
 const BOARD_HEIGHT = GRID_ROWS * CELL_SIZE;
@@ -217,17 +218,14 @@ class GameScene extends Phaser.Scene {
 
   tryMovePlayer(player, dx, dy) {
     if (player.status !== 'alive') return false;
-    const movedX = this.canOccupy(player, player.x + dx, player.y) ? dx : 0;
-    player.x += movedX;
-    const movedY = this.canOccupy(player, player.x, player.y + dy) ? dy : 0;
-    player.y += movedY;
+    const move = resolvePlayerMove(this.state, player, dx, dy, PLAYER_RADIUS);
+    const previousX = player.x;
+    const previousY = player.y;
+    player.x = move.x;
+    player.y = move.y;
     updatePlayerPositionState(this.state, player, PLAYER_RADIUS);
     tryCollectItem(this.state, player);
-    return movedX !== 0 || movedY !== 0;
-  }
-
-  canOccupy(player, x, y) {
-    return canPlayerOccupyPosition(this.state, player, x, y, PLAYER_RADIUS);
+    return move.moved || player.x !== previousX || player.y !== previousY;
   }
 
   dropBubbleWithVisual(player, now) {
@@ -329,9 +327,20 @@ class GameScene extends Phaser.Scene {
   createPlayerSprite(player) {
     const sprite = this.add.container(player.x, player.y);
     const shadow = this.add.ellipse(0, 19, 32, 9, 0x0c1720, 0.28);
+    const footColor = player.id === 'p1' ? 0x1b74d6 : 0xd64a67;
+    const footStroke = player.id === 'p1' ? 0x0d3f7d : 0x7d2639;
+    const leftFoot = this.add.ellipse(-9, 28, 15, 9, footColor, 1).setStrokeStyle(2, footStroke, 0.9);
+    const rightFoot = this.add.ellipse(9, 28, 15, 9, footColor, 1).setStrokeStyle(2, footStroke, 0.9);
     const body = this.add.image(0, -5, player.id === 'p1' ? 'player-blue' : 'player-red');
     body.setDisplaySize(42, 72);
-    sprite.add([shadow, body]);
+    sprite.add([shadow, leftFoot, rightFoot, body]);
+    sprite.bodyImage = body;
+    sprite.shadow = shadow;
+    sprite.leftFoot = leftFoot;
+    sprite.rightFoot = rightFoot;
+    sprite.lastX = player.x;
+    sprite.lastY = player.y;
+    sprite.walkTime = 0;
     this.playerLayer.add(sprite);
     this.playerSprites.set(player.id, sprite);
   }
@@ -425,6 +434,7 @@ class GameScene extends Phaser.Scene {
     for (const player of this.state.players) {
       const sprite = this.playerSprites.get(player.id);
       if (!sprite) continue;
+      this.updatePlayerWalkAnimation(player, sprite);
       sprite.setPosition(player.x, player.y);
       sprite.setAlpha(player.status === 'out' ? 0.25 : 1);
       sprite.setScale(player.status === 'trapped' ? 0.82 : 1);
@@ -450,6 +460,48 @@ class GameScene extends Phaser.Scene {
         sprite.trapRing = null;
       }
     }
+  }
+
+  updatePlayerWalkAnimation(player, sprite) {
+    const dx = player.x - sprite.lastX;
+    const dy = player.y - sprite.lastY;
+    const distance = Math.hypot(dx, dy);
+    const moving = distance > 0.08 && player.status === 'alive';
+    const body = sprite.bodyImage;
+    const shadow = sprite.shadow;
+    const leftFoot = sprite.leftFoot;
+    const rightFoot = sprite.rightFoot;
+
+    if (moving) {
+      sprite.walkTime += distance * 0.32;
+      const pose = createWalkPose({ dx, dy, walkTime: sprite.walkTime, moving: true });
+      leftFoot.x = -9 + pose.leftFoot.x;
+      leftFoot.y = 28 + pose.leftFoot.y;
+      rightFoot.x = 9 + pose.rightFoot.x;
+      rightFoot.y = 28 + pose.rightFoot.y;
+      body.y = -5 + pose.bodyOffsetY;
+      body.angle = pose.bodyAngle;
+      if (dx < -0.08) body.setFlipX(true);
+      if (dx > 0.08) body.setFlipX(false);
+      shadow.scaleX = pose.shadowScaleX;
+      shadow.scaleY = pose.shadowScaleY;
+      shadow.alpha = pose.shadowAlpha;
+    } else {
+      const pose = createWalkPose({ dx: 0, dy: 0, walkTime: sprite.walkTime, moving: false });
+      sprite.walkTime *= 0.82;
+      leftFoot.x += (-9 + pose.leftFoot.x - leftFoot.x) * 0.35;
+      leftFoot.y += (28 + pose.leftFoot.y - leftFoot.y) * 0.35;
+      rightFoot.x += (9 + pose.rightFoot.x - rightFoot.x) * 0.35;
+      rightFoot.y += (28 + pose.rightFoot.y - rightFoot.y) * 0.35;
+      body.y += (-5 + pose.bodyOffsetY - body.y) * 0.35;
+      body.angle += (pose.bodyAngle - body.angle) * 0.3;
+      shadow.scaleX += (pose.shadowScaleX - shadow.scaleX) * 0.35;
+      shadow.scaleY += (pose.shadowScaleY - shadow.scaleY) * 0.35;
+      shadow.alpha += (pose.shadowAlpha - shadow.alpha) * 0.35;
+    }
+
+    sprite.lastX = player.x;
+    sprite.lastY = player.y;
   }
 
   renderHud(remainingMs) {
