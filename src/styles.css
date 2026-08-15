@@ -17,15 +17,29 @@ body {
   display: grid;
   place-items: center;
   overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 16%, rgba(255, 90, 165, 0.28), transparent 28%),
+    radial-gradient(circle at 82% 18%, rgba(118, 240, 203, 0.22), transparent 30%),
+    radial-gradient(circle at 55% 88%, rgba(255, 173, 66, 0.18), transparent 34%),
+    linear-gradient(135deg, #142238 0%, #214a3a 52%, #3d2d73 100%);
 }
 
 #game-root {
   width: min(100vw, 960px);
   height: min(100vh, 720px);
+  display: grid;
+  place-items: center;
+  padding: 14px;
 }
 
 canvas {
   display: block;
   width: 100%;
   height: 100%;
+  border: 4px solid rgba(167, 243, 179, 0.7);
+  border-radius: 22px;
+  box-shadow:
+    0 24px 70px rgba(4, 14, 26, 0.45),
+    0 0 0 8px rgba(255, 248, 220, 0.08),
+    inset 0 0 24px rgba(143, 248, 255, 0.18);
 }
