@@ -6,13 +6,13 @@ export const FUSE_MS = 2200;
 export const TRAP_MS = 5000;
 export const SHIELD_MS = 3500;
 export const INVENTORY_SIZE = 4;
-export const INITIAL_SPEED = 120;
+export const INITIAL_SPEED = 150;
 export const INITIAL_POWER = 2;
 export const INITIAL_BUBBLES = 1;
-export const MAX_SPEED = 210;
+export const MAX_SPEED = 250;
 export const MAX_POWER = 6;
 export const MAX_BUBBLES = 5;
-export const SPEED_STEP = 18;
+export const SPEED_STEP = 20;
 export const ITEM_DROP_CHANCE = 0.35;
 export const TURN_ASSIST_DISTANCE = 16;
 

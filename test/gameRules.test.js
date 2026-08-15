@@ -5,6 +5,7 @@ import {
   CELL_SIZE,
   GRID_COLS,
   GRID_ROWS,
+  INITIAL_SPEED,
   ITEM_TYPES,
   MAX_BUBBLES,
   MAX_POWER,
@@ -37,6 +38,14 @@ test('map generation creates fixed walls, destructible blocks, and safe spawn zo
     state.grid.flat().some((cell) => cell.terrain === 'soft'),
     'generated map should include destructible soft blocks',
   );
+});
+
+test('players start with responsive movement speed for the 48px grid', () => {
+  const state = createInitialState({ mode: 'duel', seed: 1, softFill: false });
+
+  assert.equal(INITIAL_SPEED, 150);
+  assert.equal(state.players[0].speed, INITIAL_SPEED);
+  assert.equal(state.players[1].speed, INITIAL_SPEED);
 });
 
 test('placing bubbles respects the player bubble limit and stores power on the grid cell', () => {

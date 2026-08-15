@@ -141,6 +141,7 @@ class GameScene extends Phaser.Scene {
     this.aiNextThinkAt = 0;
     this.aiTarget = null;
     this.mapDirty = true;
+    this.lastHudText = '';
   }
 
   init(data) {
@@ -155,6 +156,7 @@ class GameScene extends Phaser.Scene {
     this.itemViews.clear();
     this.aiTarget = null;
     this.mapDirty = true;
+    this.lastHudText = '';
 
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, COLORS.night).setOrigin(0);
     this.mapGraphics = this.add.graphics();
@@ -621,7 +623,11 @@ class GameScene extends Phaser.Scene {
           `${player.name} ${statusText(player)}  威力${player.power}  速度${Math.round(player.speed)}  糖泡${player.activeBubbles}/${player.maxBubbles}  背包 ${inventoryText(player)}  分数${player.score}`,
       )
       .join('\n');
-    this.hudText.setText(`时间 ${minutes}:${seconds}   P1道具:1-4   P2道具:小键盘1-4\n${stats}`);
+    const nextHudText = `时间 ${minutes}:${seconds}   P1道具:1-4   P2道具:小键盘1-4\n${stats}`;
+    if (nextHudText !== this.lastHudText) {
+      this.hudText.setText(nextHudText);
+      this.lastHudText = nextHudText;
+    }
   }
 }
 
