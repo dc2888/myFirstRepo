@@ -20,6 +20,7 @@ import {
   useHeldItem,
   updatePlayerPositionState,
 } from './core/gameRules.js';
+import { frameSecondsFromDelta } from './core/frameTiming.js';
 import { createWalkPose } from './core/walkPose.js';
 
 const BOARD_WIDTH = GRID_COLS * CELL_SIZE;
@@ -139,6 +140,7 @@ class GameScene extends Phaser.Scene {
     this.itemViews = new Map();
     this.aiNextThinkAt = 0;
     this.aiTarget = null;
+    this.mapDirty = true;
   }
 
   init(data) {
@@ -152,6 +154,7 @@ class GameScene extends Phaser.Scene {
     this.bubbleSprites.clear();
     this.itemViews.clear();
     this.aiTarget = null;
+    this.mapDirty = true;
 
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, COLORS.night).setOrigin(0);
     this.mapGraphics = this.add.graphics();
@@ -198,9 +201,11 @@ class GameScene extends Phaser.Scene {
     if (this.state.ended) return;
 
     const elapsed = time - this.state.startedAt;
-    this.handleHumanInput(time, delta / 1000);
-    this.handleAi(time);
-    explodeDueBubbles(this.state, time);
+    const dt = frameSecondsFromDelta(delta);
+    this.handleHumanInput(time, dt);
+    this.handleAi(time, dt);
+    const explosions = explodeDueBubbles(this.state, time);
+    if (explosions.some((explosion) => explosion.destroyedSoftBlocks > 0)) this.mapDirty = true;
     tickTraps(this.state, time);
     handleTrapTouch(this.state);
     pruneExplosions(this.state, time);
@@ -274,6 +279,7 @@ class GameScene extends Phaser.Scene {
 
   usePlayerItem(player, now, slotIndex = 0) {
     const result = useHeldItem(this.state, player.id, now, player.lastDirection, slotIndex);
+    if (result.used && result.action === 'dart') this.mapDirty = true;
     if (result.used && result.action === 'shield') {
       const sprite = this.playerSprites.get(player.id);
       if (sprite) this.tweens.add({ targets: sprite, scale: 1.12, duration: 120, yoyo: true });
@@ -281,7 +287,7 @@ class GameScene extends Phaser.Scene {
     return result;
   }
 
-  handleAi(now) {
+  handleAi(now, dt) {
     const ai = this.state.players[1];
     if (ai.ai && ai.status === 'trapped') {
       const needleIndex = ai.inventory.indexOf(ITEM_TYPES.NEEDLE);
@@ -318,7 +324,7 @@ class GameScene extends Phaser.Scene {
       return;
     }
     const length = Math.hypot(dx, dy) || 1;
-    this.tryMovePlayer(ai, (dx / length) * ai.speed * (1 / 60), (dy / length) * ai.speed * (1 / 60));
+    this.tryMovePlayer(ai, (dx / length) * ai.speed * dt, (dy / length) * ai.speed * dt);
   }
 
   pickAiTarget(ai, now) {
@@ -396,6 +402,7 @@ class GameScene extends Phaser.Scene {
         if (terrain === 'soft') this.drawCandyBlock(col, row);
       }
     }
+    this.mapDirty = false;
   }
 
   drawGroundCell(col, row) {
@@ -466,7 +473,7 @@ class GameScene extends Phaser.Scene {
   }
 
   syncVisuals() {
-    this.renderMap();
+    if (this.mapDirty) this.renderMap();
     this.renderExplosions();
     this.syncItems();
     this.syncBubbles();
