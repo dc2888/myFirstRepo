@@ -135,6 +135,7 @@ class MenuScene extends Phaser.Scene {
     BUBBLE_STYLES.forEach((style, index) => {
       const card = this.add.container(startX + index * gap, 286);
       const bg = this.add.rectangle(0, 0, 98, 124, 0x25385d, 0.92).setStrokeStyle(2, 0x6d82a8, 0.65);
+      const hitArea = this.add.rectangle(0, 0, 106, 132, 0xffffff, 0.001);
       const glow = this.add.image(0, -22, 'bubble-glow').setDisplaySize(58, 58).setAlpha(0.55);
       const bubble = this.add.image(0, -22, style.texture).setDisplaySize(44, 44);
       const name = this.add.text(0, 22, style.name, {
@@ -143,12 +144,12 @@ class MenuScene extends Phaser.Scene {
       const description = this.add.text(0, 46, style.description, {
         fontFamily: 'Microsoft YaHei, sans-serif', fontSize: '12px', color: '#a7f3b3',
       }).setOrigin(0.5);
-      card.add([bg, glow, bubble, name, description]);
-      bg.setInteractive({ useHandCursor: true });
-      bg.on('pointerdown', () => this.selectBubbleStyle(style.id));
-      bg.on('pointerover', () => card.setScale(1.04));
-      bg.on('pointerout', () => card.setScale(1));
-      this.styleCards.set(style.id, { bg, bubble });
+      card.add([bg, glow, bubble, name, description, hitArea]);
+      hitArea.setInteractive({ useHandCursor: true });
+      hitArea.on('pointerdown', () => this.selectBubbleStyle(style.id));
+      hitArea.on('pointerover', () => card.setScale(1.04));
+      hitArea.on('pointerout', () => card.setScale(1));
+      this.styleCards.set(style.id, { bg, glow, bubble });
     });
     this.selectBubbleStyle(this.selectedBubbleStyle);
   }
@@ -159,6 +160,7 @@ class MenuScene extends Phaser.Scene {
       const selected = id === styleId;
       view.bg.setFillStyle(selected ? 0x5a3d86 : 0x25385d, selected ? 1 : 0.92);
       view.bg.setStrokeStyle(selected ? 4 : 2, selected ? COLORS.goldGlow : 0x6d82a8, selected ? 1 : 0.65);
+      view.glow.setAlpha(selected ? 0.92 : 0.55);
       view.bubble.setScale(selected ? 1.12 : 1);
     }
   }
