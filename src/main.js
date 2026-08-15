@@ -1,6 +1,5 @@
 import {
   CELL_SIZE,
-  FUSE_MS,
   GRID_COLS,
   GRID_ROWS,
   ITEM_TYPES,
@@ -14,7 +13,6 @@ import {
   getCell,
   handleTrapTouch,
   placeBubble,
-  playerAtCell,
   pruneExplosions,
   resolvePlayerMove,
   tickTraps,
@@ -30,6 +28,26 @@ const HUD_HEIGHT = 82;
 const GAME_WIDTH = BOARD_WIDTH;
 const GAME_HEIGHT = BOARD_HEIGHT + HUD_HEIGHT;
 const PLAYER_RADIUS = 16;
+
+const COLORS = {
+  night: 0x162236,
+  deepViolet: 0x3d2d73,
+  grassDark: 0x236b44,
+  grass: 0x2f8f55,
+  grassLight: 0x63c96e,
+  mint: 0xa7f3b3,
+  leaf: 0x4ab85e,
+  leafLight: 0x96e476,
+  bark: 0x8b5a2b,
+  barkDark: 0x5f351d,
+  candyPink: 0xff5aa5,
+  candyOrange: 0xffad42,
+  candyMint: 0x76f0cb,
+  candyViolet: 0xb57cff,
+  cream: 0xfff2c7,
+  cyanGlow: 0x8ff8ff,
+  goldGlow: 0xffe66d,
+};
 
 class BootScene extends Phaser.Scene {
   constructor() {
@@ -61,44 +79,50 @@ class MenuScene extends Phaser.Scene {
   }
 
   create() {
-    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x17212a).setOrigin(0);
+    drawCandyBackdrop(this);
     this.add.text(GAME_WIDTH / 2, 105, '糖泡对战', {
       fontFamily: 'Microsoft YaHei, sans-serif',
       fontSize: '54px',
-      color: '#f7fbff',
+      color: '#fff8dc',
       fontStyle: '700',
     }).setOrigin(0.5);
-    this.add.text(GAME_WIDTH / 2, 166, '放糖泡、炸软糖、捡道具，把对手困住', {
+    this.add.text(GAME_WIDTH / 2, 166, '放糖泡、炸软糖、抢道具，把对手困住', {
       fontFamily: 'Microsoft YaHei, sans-serif',
       fontSize: '20px',
-      color: '#b9c8d6',
+      color: '#dcffe3',
     }).setOrigin(0.5);
 
     this.createButton(GAME_WIDTH / 2, 262, '单人模式  玩家 vs AI', () => this.scene.start('GameScene', { mode: 'single' }));
-    this.createButton(GAME_WIDTH / 2, 342, '本地双人  WASD/方向键', () => this.scene.start('GameScene', { mode: 'duel' }));
+    this.createButton(GAME_WIDTH / 2, 342, '本地双人  WASD / 方向键', () => this.scene.start('GameScene', { mode: 'duel' }));
 
-    this.add.text(GAME_WIDTH / 2, 458, '玩家1: WASD 移动，Space 放糖泡，1-4 使用背包道具\n玩家2: 方向键移动，Enter 放糖泡，小键盘1-4 使用背包道具', {
-      fontFamily: 'Microsoft YaHei, sans-serif',
-      fontSize: '18px',
-      color: '#dbe7ef',
-      align: 'center',
-      lineSpacing: 10,
-    }).setOrigin(0.5);
+    this.add.text(
+      GAME_WIDTH / 2,
+      458,
+      '玩家1: WASD 移动，Space 放糖泡，1-4 使用背包道具\n玩家2: 方向键移动，Enter 放糖泡，小键盘 1-4 使用背包道具',
+      {
+        fontFamily: 'Microsoft YaHei, sans-serif',
+        fontSize: '18px',
+        color: '#f3ffe8',
+        align: 'center',
+        lineSpacing: 10,
+      },
+    ).setOrigin(0.5);
   }
 
   createButton(x, y, label, onClick) {
     const button = this.add.container(x, y);
-    const bg = this.add.rectangle(0, 0, 360, 56, 0x2e4759).setStrokeStyle(2, 0x8bd5ff);
+    const glow = this.add.rectangle(0, 5, 382, 64, COLORS.candyPink, 0.16).setStrokeStyle(2, COLORS.candyMint, 0.35);
+    const bg = this.add.rectangle(0, 0, 360, 56, 0x4b387f).setStrokeStyle(3, COLORS.candyMint);
     const text = this.add.text(0, 0, label, {
       fontFamily: 'Microsoft YaHei, sans-serif',
       fontSize: '20px',
-      color: '#ffffff',
+      color: '#fff8dc',
       fontStyle: '700',
     }).setOrigin(0.5);
-    button.add([bg, text]);
+    button.add([glow, bg, text]);
     bg.setInteractive({ useHandCursor: true });
-    bg.on('pointerover', () => bg.setFillStyle(0x3b6078));
-    bg.on('pointerout', () => bg.setFillStyle(0x2e4759));
+    bg.on('pointerover', () => bg.setFillStyle(0x684bb0));
+    bg.on('pointerout', () => bg.setFillStyle(0x4b387f));
     bg.on('pointerdown', onClick);
     return button;
   }
@@ -129,13 +153,19 @@ class GameScene extends Phaser.Scene {
     this.itemViews.clear();
     this.aiTarget = null;
 
+    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, COLORS.night).setOrigin(0);
     this.mapGraphics = this.add.graphics();
     this.explosionGraphics = this.add.graphics();
     this.itemLayer = this.add.container(0, HUD_HEIGHT);
     this.bubbleLayer = this.add.container(0, HUD_HEIGHT);
     this.playerLayer = this.add.container(0, HUD_HEIGHT);
-    this.hudText = this.add.text(16, 12, '', hudTextStyle(18));
-    this.helpText = this.add.text(GAME_WIDTH - 16, 12, this.mode === 'single' ? '单人模式' : '本地双人', hudTextStyle(18)).setOrigin(1, 0);
+    this.hudPanel = this.add.rectangle(12, 9, GAME_WIDTH - 24, HUD_HEIGHT - 18, 0x264061, 0.82)
+      .setOrigin(0)
+      .setStrokeStyle(2, COLORS.candyMint, 0.42);
+    this.hudText = this.add.text(18, 12, '', hudTextStyle(17));
+    this.helpText = this.add
+      .text(GAME_WIDTH - 18, 12, this.mode === 'single' ? '单人模式' : '本地双人', hudTextStyle(17))
+      .setOrigin(1, 0);
 
     this.keys = this.input.keyboard.addKeys({
       w: Phaser.Input.Keyboard.KeyCodes.W,
@@ -231,10 +261,13 @@ class GameScene extends Phaser.Scene {
   dropBubbleWithVisual(player, now) {
     const result = placeBubble(this.state, player.id, now);
     if (result.placed) {
-      const sprite = this.add.image(result.bubble.col * CELL_SIZE + CELL_SIZE / 2, result.bubble.row * CELL_SIZE + CELL_SIZE / 2, 'bubble');
-      sprite.setDisplaySize(38, 38);
-      this.bubbleLayer.add(sprite);
-      this.bubbleSprites.set(result.bubble.id, sprite);
+      const bubbleView = this.add.container(result.bubble.col * CELL_SIZE + CELL_SIZE / 2, result.bubble.row * CELL_SIZE + CELL_SIZE / 2);
+      const glow = this.add.image(0, 0, 'bubble-glow').setDisplaySize(54, 54).setAlpha(0.75);
+      const sprite = this.add.image(0, 0, 'bubble').setDisplaySize(38, 38);
+      bubbleView.add([glow, sprite]);
+      this.bubbleLayer.add(bubbleView);
+      this.bubbleSprites.set(result.bubble.id, bubbleView);
+      this.tweens.add({ targets: glow, alpha: 0.35, scale: 1.12, duration: 420, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
       this.tweens.add({ targets: sprite, displayWidth: 41, displayHeight: 41, duration: 320, yoyo: true, repeat: -1 });
     }
   }
@@ -326,7 +359,7 @@ class GameScene extends Phaser.Scene {
 
   createPlayerSprite(player) {
     const sprite = this.add.container(player.x, player.y);
-    const shadow = this.add.ellipse(0, 19, 32, 9, 0x0c1720, 0.28);
+    const shadow = this.add.ellipse(0, 19, 34, 10, 0x0c1720, 0.3);
     const footColor = player.id === 'p1' ? 0x1b74d6 : 0xd64a67;
     const footStroke = player.id === 'p1' ? 0x0d3f7d : 0x7d2639;
     const leftFoot = this.add.ellipse(-9, 28, 15, 9, footColor, 1).setStrokeStyle(2, footStroke, 0.9);
@@ -347,27 +380,89 @@ class GameScene extends Phaser.Scene {
 
   renderMap() {
     this.mapGraphics.clear();
-    this.mapGraphics.fillStyle(0x274a3a);
+    this.mapGraphics.fillStyle(COLORS.grassDark);
     this.mapGraphics.fillRect(0, HUD_HEIGHT, BOARD_WIDTH, BOARD_HEIGHT);
+
     for (let row = 0; row < GRID_ROWS; row += 1) {
       for (let col = 0; col < GRID_COLS; col += 1) {
-        const x = col * CELL_SIZE;
-        const y = HUD_HEIGHT + row * CELL_SIZE;
-        this.mapGraphics.lineStyle(1, 0x315945, 0.65);
-        this.mapGraphics.strokeRect(x, y, CELL_SIZE, CELL_SIZE);
-        const terrain = this.state.grid[row][col].terrain;
-        if (terrain === 'hard') {
-          this.mapGraphics.fillStyle(0x53616b);
-          this.mapGraphics.fillRect(x + 4, y + 4, CELL_SIZE - 8, CELL_SIZE - 8);
-        }
-        if (terrain === 'soft') {
-          this.mapGraphics.fillStyle(0xd59c5c);
-          this.mapGraphics.fillRect(x + 7, y + 7, CELL_SIZE - 14, CELL_SIZE - 14);
-          this.mapGraphics.fillStyle(0xf4bf75);
-          this.mapGraphics.fillRect(x + 12, y + 12, CELL_SIZE - 24, 8);
-        }
+        this.drawGroundCell(col, row);
       }
     }
+
+    for (let row = 0; row < GRID_ROWS; row += 1) {
+      for (let col = 0; col < GRID_COLS; col += 1) {
+        const terrain = this.state.grid[row][col].terrain;
+        if (terrain === 'hard') this.drawTreeBlock(col, row);
+        if (terrain === 'soft') this.drawCandyBlock(col, row);
+      }
+    }
+  }
+
+  drawGroundCell(col, row) {
+    const x = col * CELL_SIZE;
+    const y = HUD_HEIGHT + row * CELL_SIZE;
+    const tint = (row + col) % 2 === 0 ? COLORS.grass : 0x2a814e;
+    this.mapGraphics.fillStyle(tint, 0.58);
+    this.mapGraphics.fillRoundedRect(x + 2, y + 2, CELL_SIZE - 4, CELL_SIZE - 4, 7);
+    this.mapGraphics.lineStyle(1, COLORS.mint, 0.13);
+    this.mapGraphics.strokeRoundedRect(x + 2, y + 2, CELL_SIZE - 4, CELL_SIZE - 4, 7);
+
+    const seed = (col * 37 + row * 53) % 11;
+    if (seed % 3 === 0) {
+      this.mapGraphics.lineStyle(2, COLORS.grassLight, 0.35);
+      this.mapGraphics.lineBetween(x + 14, y + 35, x + 20, y + 28);
+      this.mapGraphics.lineBetween(x + 20, y + 28, x + 27, y + 34);
+    }
+    if (seed % 4 === 0) {
+      this.mapGraphics.fillStyle(COLORS.cream, 0.42);
+      this.mapGraphics.fillCircle(x + 40, y + 17, 2);
+    }
+  }
+
+  drawTreeBlock(col, row) {
+    const x = col * CELL_SIZE;
+    const y = HUD_HEIGHT + row * CELL_SIZE;
+    this.mapGraphics.fillStyle(0x0b2718, 0.32);
+    this.mapGraphics.fillEllipse(x + CELL_SIZE / 2, y + 44, 43, 14);
+
+    this.mapGraphics.fillStyle(COLORS.barkDark);
+    this.mapGraphics.fillRoundedRect(x + 22, y + 20, 20, 30, 8);
+    this.mapGraphics.fillStyle(COLORS.bark);
+    this.mapGraphics.fillRoundedRect(x + 26, y + 18, 14, 31, 7);
+    this.mapGraphics.lineStyle(2, 0xc98d4c, 0.55);
+    this.mapGraphics.lineBetween(x + 31, y + 23, x + 29, y + 42);
+    this.mapGraphics.lineBetween(x + 37, y + 25, x + 35, y + 44);
+
+    this.mapGraphics.fillStyle(0x216e38);
+    this.mapGraphics.fillCircle(x + 22, y + 21, 17);
+    this.mapGraphics.fillCircle(x + 42, y + 20, 18);
+    this.mapGraphics.fillCircle(x + 32, y + 11, 18);
+    this.mapGraphics.fillStyle(COLORS.leaf);
+    this.mapGraphics.fillCircle(x + 28, y + 20, 18);
+    this.mapGraphics.fillCircle(x + 42, y + 27, 14);
+    this.mapGraphics.fillStyle(COLORS.leafLight, 0.66);
+    this.mapGraphics.fillCircle(x + 24, y + 14, 5);
+    this.mapGraphics.fillCircle(x + 40, y + 17, 4);
+  }
+
+  drawCandyBlock(col, row) {
+    const x = col * CELL_SIZE;
+    const y = HUD_HEIGHT + row * CELL_SIZE;
+    const main = (row + col) % 2 === 0 ? COLORS.candyPink : COLORS.candyOrange;
+    const accent = (row + col) % 2 === 0 ? COLORS.candyMint : COLORS.candyViolet;
+
+    this.mapGraphics.fillStyle(0x351f3f, 0.28);
+    this.mapGraphics.fillEllipse(x + CELL_SIZE / 2, y + 45, 40, 12);
+    this.mapGraphics.fillStyle(main);
+    this.mapGraphics.fillRoundedRect(x + 8, y + 10, CELL_SIZE - 16, CELL_SIZE - 18, 13);
+    this.mapGraphics.fillStyle(accent, 0.92);
+    this.mapGraphics.fillRoundedRect(x + 14, y + 15, CELL_SIZE - 28, 9, 5);
+    this.mapGraphics.lineStyle(4, COLORS.cream, 0.66);
+    this.mapGraphics.lineBetween(x + 16, y + 41, x + 41, y + 15);
+    this.mapGraphics.lineStyle(2, 0xffffff, 0.75);
+    this.mapGraphics.lineBetween(x + 16, y + 18, x + 25, y + 14);
+    this.mapGraphics.lineStyle(2, 0x7a2857, 0.25);
+    this.mapGraphics.strokeRoundedRect(x + 8, y + 10, CELL_SIZE - 16, CELL_SIZE - 18, 13);
   }
 
   syncVisuals() {
@@ -381,9 +476,18 @@ class GameScene extends Phaser.Scene {
   renderExplosions() {
     this.explosionGraphics.clear();
     for (const explosion of this.state.explosions) {
-      this.explosionGraphics.fillStyle(0x9eeaff, 0.78);
       for (const cell of explosion.cells) {
-        this.explosionGraphics.fillRoundedRect(cell.col * CELL_SIZE + 7, HUD_HEIGHT + cell.row * CELL_SIZE + 7, CELL_SIZE - 14, CELL_SIZE - 14, 8);
+        const x = cell.col * CELL_SIZE;
+        const y = HUD_HEIGHT + cell.row * CELL_SIZE;
+        this.explosionGraphics.fillStyle(COLORS.candyPink, 0.26);
+        this.explosionGraphics.fillRoundedRect(x + 3, y + 3, CELL_SIZE - 6, CELL_SIZE - 6, 14);
+        this.explosionGraphics.fillStyle(COLORS.cyanGlow, 0.52);
+        this.explosionGraphics.fillRoundedRect(x + 7, y + 7, CELL_SIZE - 14, CELL_SIZE - 14, 11);
+        this.explosionGraphics.fillStyle(COLORS.goldGlow, 0.82);
+        this.explosionGraphics.fillRoundedRect(x + 15, y + 20, CELL_SIZE - 30, CELL_SIZE - 40, 8);
+        this.explosionGraphics.fillRoundedRect(x + 20, y + 15, CELL_SIZE - 40, CELL_SIZE - 30, 8);
+        this.explosionGraphics.fillStyle(0xffffff, 0.8);
+        this.explosionGraphics.fillCircle(x + CELL_SIZE / 2, y + CELL_SIZE / 2, 6);
       }
     }
   }
@@ -398,33 +502,30 @@ class GameScene extends Phaser.Scene {
     for (const [key, type] of this.state.items.entries()) {
       if (this.itemViews.has(key)) continue;
       const [col, row] = key.split(',').map(Number);
-      const view = this.add.container(col * CELL_SIZE + CELL_SIZE / 2, HUD_HEIGHT + row * CELL_SIZE + CELL_SIZE / 2);
-      const icon = this.add.image(0, 0, `item-${type}`);
-      if (type === ITEM_TYPES.SPEED) {
-        icon.setDisplaySize(40, 39);
-      } else if (type === ITEM_TYPES.POWER) {
-        icon.setDisplaySize(28, 40);
-      } else if (type === ITEM_TYPES.DART) {
-        icon.setDisplaySize(38, 38);
-      } else if (type === ITEM_TYPES.BANANA) {
-        icon.setDisplaySize(42, 36);
-      } else if (type === ITEM_TYPES.NEEDLE) {
-        icon.setDisplaySize(32, 40);
-      } else if (type === ITEM_TYPES.SHIELD) {
-        icon.setDisplaySize(38, 38);
-      } else {
-        icon.setDisplaySize(36, 36);
-      }
-      view.add(icon);
+      const view = this.add.container(col * CELL_SIZE + CELL_SIZE / 2, row * CELL_SIZE + CELL_SIZE / 2);
+      const glow = this.add.image(0, 1, 'pickup-glow').setDisplaySize(52, 52);
+      const icon = this.add.image(0, -2, `item-${type}`);
+      setItemIconSize(icon, type);
+      view.add([glow, icon]);
+      this.itemLayer.add(view);
       this.itemViews.set(key, view);
+      this.tweens.add({
+        targets: view,
+        y: view.y - 4,
+        duration: 780,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+      this.tweens.add({ targets: glow, alpha: 0.55, scale: 1.08, duration: 640, yoyo: true, repeat: -1 });
     }
   }
 
   syncBubbles() {
     const liveIds = new Set(this.state.bubbles.map((bubble) => bubble.id));
-    for (const [id, sprite] of [...this.bubbleSprites.entries()]) {
+    for (const [id, view] of [...this.bubbleSprites.entries()]) {
       if (!liveIds.has(id)) {
-        sprite.destroy();
+        view.destroy();
         this.bubbleSprites.delete(id);
       }
     }
@@ -510,7 +611,7 @@ class GameScene extends Phaser.Scene {
     const stats = this.state.players
       .map(
         (player) =>
-          `${player.name} ${statusText(player)}  威${player.power}  速${player.speed}  泡${player.activeBubbles}/${player.maxBubbles}  包:${inventoryText(player)}  分${player.score}`,
+          `${player.name} ${statusText(player)}  威力${player.power}  速度${Math.round(player.speed)}  糖泡${player.activeBubbles}/${player.maxBubbles}  背包 ${inventoryText(player)}  分数${player.score}`,
       )
       .join('\n');
     this.hudText.setText(`时间 ${minutes}:${seconds}   P1道具:1-4   P2道具:小键盘1-4\n${stats}`);
@@ -525,11 +626,11 @@ class ResultScene extends Phaser.Scene {
   create(data) {
     const result = data.result;
     const state = data.state;
-    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x17212a).setOrigin(0);
+    drawCandyBackdrop(this);
     this.add.text(GAME_WIDTH / 2, 130, result.reason, {
       fontFamily: 'Microsoft YaHei, sans-serif',
       fontSize: '38px',
-      color: '#f7fbff',
+      color: '#fff8dc',
       fontStyle: '700',
     }).setOrigin(0.5);
 
@@ -539,7 +640,7 @@ class ResultScene extends Phaser.Scene {
     this.add.text(GAME_WIDTH / 2, 240, scoreLines, {
       fontFamily: 'Microsoft YaHei, sans-serif',
       fontSize: '21px',
-      color: '#dbe7ef',
+      color: '#f3ffe8',
       align: 'center',
       lineSpacing: 12,
     }).setOrigin(0.5);
@@ -549,26 +650,80 @@ class ResultScene extends Phaser.Scene {
   }
 
   createButton(x, y, label, onClick) {
-    const bg = this.add.rectangle(x, y, 260, 54, 0x2e4759).setStrokeStyle(2, 0x8bd5ff);
+    const glow = this.add.rectangle(x, y + 4, 282, 62, COLORS.candyPink, 0.16).setStrokeStyle(2, COLORS.candyMint, 0.35);
+    const bg = this.add.rectangle(x, y, 260, 54, 0x4b387f).setStrokeStyle(3, COLORS.candyMint);
     this.add.text(x, y, label, {
       fontFamily: 'Microsoft YaHei, sans-serif',
       fontSize: '20px',
-      color: '#ffffff',
+      color: '#fff8dc',
       fontStyle: '700',
     }).setOrigin(0.5);
     bg.setInteractive({ useHandCursor: true });
-    bg.on('pointerover', () => bg.setFillStyle(0x3b6078));
-    bg.on('pointerout', () => bg.setFillStyle(0x2e4759));
+    bg.on('pointerover', () => bg.setFillStyle(0x684bb0));
+    bg.on('pointerout', () => bg.setFillStyle(0x4b387f));
     bg.on('pointerdown', onClick);
+    return glow;
   }
 }
 
 function createTextures(scene) {
   const graphics = scene.add.graphics();
-  graphics.lineStyle(4, 0x9eeaff, 0.95);
+
+  graphics.lineStyle(4, COLORS.cyanGlow, 0.95);
   graphics.strokeCircle(22, 22, 20);
+  graphics.lineStyle(2, 0xffffff, 0.4);
+  graphics.strokeCircle(22, 22, 14);
   graphics.generateTexture('trap', 44, 44);
+
+  graphics.clear();
+  graphics.fillStyle(COLORS.cyanGlow, 0.28);
+  graphics.fillCircle(28, 28, 27);
+  graphics.fillStyle(COLORS.candyPink, 0.2);
+  graphics.fillCircle(28, 28, 20);
+  graphics.generateTexture('bubble-glow', 56, 56);
+
+  graphics.clear();
+  graphics.fillStyle(COLORS.goldGlow, 0.36);
+  graphics.fillCircle(27, 27, 26);
+  graphics.fillStyle(COLORS.candyMint, 0.2);
+  graphics.fillCircle(27, 27, 18);
+  graphics.lineStyle(2, 0xffffff, 0.55);
+  graphics.strokeCircle(27, 27, 20);
+  graphics.generateTexture('pickup-glow', 54, 54);
+
   graphics.destroy();
+}
+
+function drawCandyBackdrop(scene) {
+  scene.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, COLORS.night).setOrigin(0);
+  scene.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, COLORS.deepViolet, 0.42).setOrigin(0);
+  scene.add.circle(100, 90, 90, COLORS.candyPink, 0.18);
+  scene.add.circle(GAME_WIDTH - 95, 135, 120, COLORS.candyMint, 0.12);
+  scene.add.circle(170, GAME_HEIGHT - 70, 120, COLORS.grassLight, 0.1);
+  scene.add.circle(GAME_WIDTH - 120, GAME_HEIGHT - 95, 95, COLORS.candyOrange, 0.12);
+  for (let i = 0; i < 16; i += 1) {
+    const x = 35 + ((i * 97) % (GAME_WIDTH - 70));
+    const y = 35 + ((i * 61) % (GAME_HEIGHT - 70));
+    scene.add.star(x, y, 4, 2, 5, i % 2 === 0 ? COLORS.cream : COLORS.candyMint, 0.3);
+  }
+}
+
+function setItemIconSize(icon, type) {
+  if (type === ITEM_TYPES.SPEED) {
+    icon.setDisplaySize(40, 39);
+  } else if (type === ITEM_TYPES.POWER) {
+    icon.setDisplaySize(28, 40);
+  } else if (type === ITEM_TYPES.DART) {
+    icon.setDisplaySize(38, 38);
+  } else if (type === ITEM_TYPES.BANANA) {
+    icon.setDisplaySize(42, 36);
+  } else if (type === ITEM_TYPES.NEEDLE) {
+    icon.setDisplaySize(32, 40);
+  } else if (type === ITEM_TYPES.SHIELD) {
+    icon.setDisplaySize(38, 38);
+  } else {
+    icon.setDisplaySize(36, 36);
+  }
 }
 
 function adjacentSoftBlock(state, col, row) {
@@ -587,7 +742,7 @@ function statusText(player) {
 }
 
 function itemName(type) {
-  if (!type) return '无';
+  if (!type) return '空';
   return {
     [ITEM_TYPES.POWER]: '药水',
     [ITEM_TYPES.SPEED]: '飞鞋',
@@ -617,8 +772,8 @@ const config = {
   parent: 'game-root',
   width: GAME_WIDTH,
   height: GAME_HEIGHT,
-  backgroundColor: '#17212a',
-  pixelArt: true,
+  backgroundColor: '#162236',
+  pixelArt: false,
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
