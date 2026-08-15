@@ -30,6 +30,14 @@ const GAME_WIDTH = BOARD_WIDTH;
 const GAME_HEIGHT = BOARD_HEIGHT + HUD_HEIGHT;
 const PLAYER_RADIUS = 16;
 
+const BUBBLE_STYLES = [
+  { id: 'classic', name: '经典糖泡', description: '清透蓝莓', texture: 'bubble' },
+  { id: 'berry', name: '莓果甜心', description: '草莓奶油', texture: 'bubble-berry' },
+  { id: 'soda', name: '薄荷汽水', description: '清凉气泡', texture: 'bubble-soda' },
+  { id: 'star', name: '星星软糖', description: '闪亮幸运', texture: 'bubble-star' },
+  { id: 'galaxy', name: '梦幻星河', description: '神秘旋涡', texture: 'bubble-galaxy' },
+];
+
 const COLORS = {
   night: 0x162236,
   deepViolet: 0x3d2d73,
@@ -77,6 +85,7 @@ class BootScene extends Phaser.Scene {
 class MenuScene extends Phaser.Scene {
   constructor() {
     super('MenuScene');
+    this.selectedBubbleStyle = 'classic';
   }
 
   create() {
@@ -87,18 +96,23 @@ class MenuScene extends Phaser.Scene {
       color: '#fff8dc',
       fontStyle: '700',
     }).setOrigin(0.5);
-    this.add.text(GAME_WIDTH / 2, 166, '放糖泡、炸软糖、抢道具，把对手困住', {
+    this.add.text(GAME_WIDTH / 2, 160, '放糖泡、炸软糖、抢道具，把对手困住', {
       fontFamily: 'Microsoft YaHei, sans-serif',
       fontSize: '20px',
       color: '#dcffe3',
     }).setOrigin(0.5);
 
-    this.createButton(GAME_WIDTH / 2, 262, '单人模式  玩家 vs AI', () => this.scene.start('GameScene', { mode: 'single' }));
-    this.createButton(GAME_WIDTH / 2, 342, '本地双人  WASD / 方向键', () => this.scene.start('GameScene', { mode: 'duel' }));
+    this.add.text(GAME_WIDTH / 2, 203, '选择你的糖泡', {
+      fontFamily: 'Microsoft YaHei, sans-serif', fontSize: '19px', color: '#fff1b8', fontStyle: '700',
+    }).setOrigin(0.5);
+    this.createBubbleStylePicker();
+
+    this.createButton(GAME_WIDTH / 2, 404, '单人模式  玩家 vs AI', () => this.startGame('single'));
+    this.createButton(GAME_WIDTH / 2, 476, '本地双人  WASD / 方向键', () => this.startGame('duel'));
 
     this.add.text(
       GAME_WIDTH / 2,
-      458,
+      588,
       '玩家1: WASD 移动，Space 放糖泡，1-4 使用背包道具\n玩家2: 方向键移动，Enter 放糖泡，小键盘 1-4 使用背包道具',
       {
         fontFamily: 'Microsoft YaHei, sans-serif',
@@ -108,6 +122,45 @@ class MenuScene extends Phaser.Scene {
         lineSpacing: 10,
       },
     ).setOrigin(0.5);
+  }
+
+  startGame(mode) {
+    this.scene.start('GameScene', { mode, bubbleStyle: this.selectedBubbleStyle });
+  }
+
+  createBubbleStylePicker() {
+    this.styleCards = new Map();
+    const gap = 112;
+    const startX = GAME_WIDTH / 2 - gap * 2;
+    BUBBLE_STYLES.forEach((style, index) => {
+      const card = this.add.container(startX + index * gap, 286);
+      const bg = this.add.rectangle(0, 0, 98, 124, 0x25385d, 0.92).setStrokeStyle(2, 0x6d82a8, 0.65);
+      const glow = this.add.image(0, -22, 'bubble-glow').setDisplaySize(58, 58).setAlpha(0.55);
+      const bubble = this.add.image(0, -22, style.texture).setDisplaySize(44, 44);
+      const name = this.add.text(0, 22, style.name, {
+        fontFamily: 'Microsoft YaHei, sans-serif', fontSize: '14px', color: '#f7fbff', fontStyle: '700',
+      }).setOrigin(0.5);
+      const description = this.add.text(0, 46, style.description, {
+        fontFamily: 'Microsoft YaHei, sans-serif', fontSize: '12px', color: '#a7f3b3',
+      }).setOrigin(0.5);
+      card.add([bg, glow, bubble, name, description]);
+      bg.setInteractive({ useHandCursor: true });
+      bg.on('pointerdown', () => this.selectBubbleStyle(style.id));
+      bg.on('pointerover', () => card.setScale(1.04));
+      bg.on('pointerout', () => card.setScale(1));
+      this.styleCards.set(style.id, { bg, bubble });
+    });
+    this.selectBubbleStyle(this.selectedBubbleStyle);
+  }
+
+  selectBubbleStyle(styleId) {
+    this.selectedBubbleStyle = styleId;
+    for (const [id, view] of this.styleCards.entries()) {
+      const selected = id === styleId;
+      view.bg.setFillStyle(selected ? 0x5a3d86 : 0x25385d, selected ? 1 : 0.92);
+      view.bg.setStrokeStyle(selected ? 4 : 2, selected ? COLORS.goldGlow : 0x6d82a8, selected ? 1 : 0.65);
+      view.bubble.setScale(selected ? 1.12 : 1);
+    }
   }
 
   createButton(x, y, label, onClick) {
@@ -133,6 +186,7 @@ class GameScene extends Phaser.Scene {
   constructor() {
     super('GameScene');
     this.mode = 'single';
+    this.bubbleStyle = 'classic';
     this.state = null;
     this.keys = null;
     this.playerSprites = new Map();
@@ -146,6 +200,7 @@ class GameScene extends Phaser.Scene {
 
   init(data) {
     this.mode = data.mode ?? 'single';
+    this.bubbleStyle = BUBBLE_STYLES.some((style) => style.id === data.bubbleStyle) ? data.bubbleStyle : 'classic';
   }
 
   create() {
@@ -216,7 +271,12 @@ class GameScene extends Phaser.Scene {
     const result = chooseWinner(this.state, elapsed);
     if (result.ended) {
       this.state.ended = true;
-      this.time.delayedCall(450, () => this.scene.start('ResultScene', { mode: this.mode, state: this.state, result }));
+      this.time.delayedCall(450, () => this.scene.start('ResultScene', {
+        mode: this.mode,
+        bubbleStyle: this.bubbleStyle,
+        state: this.state,
+        result,
+      }));
       return;
     }
 
@@ -270,7 +330,8 @@ class GameScene extends Phaser.Scene {
     if (result.placed) {
       const bubbleView = this.add.container(result.bubble.col * CELL_SIZE + CELL_SIZE / 2, result.bubble.row * CELL_SIZE + CELL_SIZE / 2);
       const glow = this.add.image(0, 0, 'bubble-glow').setDisplaySize(54, 54).setAlpha(0.75);
-      const sprite = this.add.image(0, 0, 'bubble').setDisplaySize(38, 38);
+      const bubbleTexture = BUBBLE_STYLES.find((style) => style.id === this.bubbleStyle)?.texture ?? 'bubble';
+      const sprite = this.add.image(0, 0, bubbleTexture).setDisplaySize(38, 38);
       bubbleView.add([glow, sprite]);
       this.bubbleLayer.add(bubbleView);
       this.bubbleSprites.set(result.bubble.id, bubbleView);
@@ -658,7 +719,10 @@ class ResultScene extends Phaser.Scene {
       lineSpacing: 12,
     }).setOrigin(0.5);
 
-    this.createButton(GAME_WIDTH / 2, 370, '再来一局', () => this.scene.start('GameScene', { mode: data.mode }));
+    this.createButton(GAME_WIDTH / 2, 370, '再来一局', () => this.scene.start('GameScene', {
+      mode: data.mode,
+      bubbleStyle: data.bubbleStyle,
+    }));
     this.createButton(GAME_WIDTH / 2, 446, '返回菜单', () => this.scene.start('MenuScene'));
   }
 
@@ -681,6 +745,8 @@ class ResultScene extends Phaser.Scene {
 
 function createTextures(scene) {
   const graphics = scene.add.graphics();
+
+  createBubbleStyleTextures(graphics);
 
   graphics.lineStyle(4, COLORS.cyanGlow, 0.95);
   graphics.strokeCircle(22, 22, 20);
@@ -705,6 +771,77 @@ function createTextures(scene) {
   graphics.generateTexture('pickup-glow', 54, 54);
 
   graphics.destroy();
+}
+
+function createBubbleStyleTextures(graphics) {
+  drawBubbleBase(graphics, 0xff5f9e, 0xffb8d4, 0xa91f62);
+  graphics.fillStyle(0xffffff, 0.88);
+  graphics.fillCircle(17, 14, 5);
+  graphics.fillStyle(0xffe8a3);
+  graphics.fillCircle(14, 29, 2);
+  graphics.fillCircle(31, 32, 2);
+  graphics.fillCircle(34, 19, 2);
+  graphics.fillStyle(0x69d875);
+  graphics.fillTriangle(18, 5, 24, 12, 27, 4);
+  graphics.fillTriangle(24, 10, 31, 5, 30, 14);
+  graphics.generateTexture('bubble-berry', 48, 48);
+
+  graphics.clear();
+  drawBubbleBase(graphics, 0x54e3d0, 0xc5fff4, 0x168c9d);
+  graphics.lineStyle(3, 0xffffff, 0.72);
+  graphics.strokeCircle(24, 25, 13);
+  graphics.fillStyle(0xffffff, 0.75);
+  graphics.fillCircle(17, 17, 4);
+  graphics.fillCircle(31, 28, 3);
+  graphics.fillCircle(25, 35, 2);
+  graphics.generateTexture('bubble-soda', 48, 48);
+
+  graphics.clear();
+  drawBubbleBase(graphics, 0x9e72ff, 0xe1cfff, 0x5a279f);
+  graphics.fillStyle(0xfff08a);
+  graphics.fillPoints(starPoints(24, 24, 12, 5), true);
+  graphics.lineStyle(2, 0xffffff, 0.7);
+  graphics.strokePoints(starPoints(24, 24, 12, 5), true);
+  graphics.generateTexture('bubble-star', 48, 48);
+
+  graphics.clear();
+  drawBubbleBase(graphics, 0x3d2d73, 0x9d83ff, 0x201845);
+  graphics.lineStyle(4, 0xff71be, 0.78);
+  graphics.beginPath();
+  graphics.arc(24, 25, 12, -0.8, 2.5);
+  graphics.strokePath();
+  graphics.lineStyle(3, 0x79f4e2, 0.88);
+  graphics.beginPath();
+  graphics.arc(23, 24, 7, 2.2, 5.7);
+  graphics.strokePath();
+  graphics.fillStyle(0xffffff, 0.92);
+  graphics.fillCircle(15, 13, 2);
+  graphics.fillCircle(34, 16, 1.5);
+  graphics.fillCircle(32, 34, 2);
+  graphics.generateTexture('bubble-galaxy', 48, 48);
+
+  graphics.clear();
+}
+
+function drawBubbleBase(graphics, mainColor, highlightColor, outlineColor) {
+  graphics.fillStyle(0x0a1520, 0.24);
+  graphics.fillEllipse(24, 42, 30, 7);
+  graphics.fillStyle(mainColor);
+  graphics.fillCircle(24, 23, 19);
+  graphics.lineStyle(3, outlineColor, 0.9);
+  graphics.strokeCircle(24, 23, 19);
+  graphics.fillStyle(highlightColor, 0.72);
+  graphics.fillEllipse(17, 14, 8, 6);
+  graphics.fillStyle(0xffffff, 0.55);
+  graphics.fillCircle(14, 11, 2);
+}
+
+function starPoints(centerX, centerY, outerRadius, innerRadius) {
+  return Array.from({ length: 10 }, (_, index) => {
+    const radius = index % 2 === 0 ? outerRadius : innerRadius;
+    const angle = -Math.PI / 2 + (index * Math.PI) / 5;
+    return { x: centerX + Math.cos(angle) * radius, y: centerY + Math.sin(angle) * radius };
+  });
 }
 
 function drawCandyBackdrop(scene) {
