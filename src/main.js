@@ -22,6 +22,7 @@ import {
 } from './core/gameRules.js';
 import { frameSecondsFromDelta } from './core/frameTiming.js';
 import { createWalkPose } from './core/walkPose.js';
+import { BUBBLE_STYLES } from './core/bubbleStyles.js';
 
 const BOARD_WIDTH = GRID_COLS * CELL_SIZE;
 const BOARD_HEIGHT = GRID_ROWS * CELL_SIZE;
@@ -29,14 +30,6 @@ const HUD_HEIGHT = 82;
 const GAME_WIDTH = BOARD_WIDTH;
 const GAME_HEIGHT = BOARD_HEIGHT + HUD_HEIGHT;
 const PLAYER_RADIUS = 16;
-
-const BUBBLE_STYLES = [
-  { id: 'classic', name: '经典糖泡', description: '清透蓝莓', texture: 'bubble' },
-  { id: 'berry', name: '莓果甜心', description: '草莓奶油', texture: 'bubble-berry' },
-  { id: 'soda', name: '薄荷汽水', description: '清凉气泡', texture: 'bubble-soda' },
-  { id: 'star', name: '星星软糖', description: '闪亮幸运', texture: 'bubble-star' },
-  { id: 'galaxy', name: '梦幻星河', description: '神秘旋涡', texture: 'bubble-galaxy' },
-];
 
 const COLORS = {
   night: 0x162236,
@@ -90,29 +83,29 @@ class MenuScene extends Phaser.Scene {
 
   create() {
     drawCandyBackdrop(this);
-    this.add.text(GAME_WIDTH / 2, 105, '糖泡对战', {
+    this.add.text(GAME_WIDTH / 2, 80, '糖泡对战', {
       fontFamily: 'Microsoft YaHei, sans-serif',
       fontSize: '54px',
       color: '#fff8dc',
       fontStyle: '700',
     }).setOrigin(0.5);
-    this.add.text(GAME_WIDTH / 2, 160, '放糖泡、炸软糖、抢道具，把对手困住', {
+    this.add.text(GAME_WIDTH / 2, 132, '放糖泡、炸软糖、抢道具，把对手困住', {
       fontFamily: 'Microsoft YaHei, sans-serif',
       fontSize: '20px',
       color: '#dcffe3',
     }).setOrigin(0.5);
 
-    this.add.text(GAME_WIDTH / 2, 203, '选择你的糖泡', {
+    this.add.text(GAME_WIDTH / 2, 172, '选择你的糖泡', {
       fontFamily: 'Microsoft YaHei, sans-serif', fontSize: '19px', color: '#fff1b8', fontStyle: '700',
     }).setOrigin(0.5);
     this.createBubbleStylePicker();
 
-    this.createButton(GAME_WIDTH / 2, 404, '单人模式  玩家 vs AI', () => this.startGame('single'));
-    this.createButton(GAME_WIDTH / 2, 476, '本地双人  WASD / 方向键', () => this.startGame('duel'));
+    this.createButton(GAME_WIDTH / 2, 512, '单人模式  玩家 vs AI', () => this.startGame('single'));
+    this.createButton(GAME_WIDTH / 2, 580, '本地双人  WASD / 方向键', () => this.startGame('duel'));
 
     this.add.text(
       GAME_WIDTH / 2,
-      588,
+      662,
       '玩家1: WASD 移动，Space 放糖泡，1-4 使用背包道具\n玩家2: 方向键移动，Enter 放糖泡，小键盘 1-4 使用背包道具',
       {
         fontFamily: 'Microsoft YaHei, sans-serif',
@@ -130,19 +123,24 @@ class MenuScene extends Phaser.Scene {
 
   createBubbleStylePicker() {
     this.styleCards = new Map();
-    const gap = 112;
-    const startX = GAME_WIDTH / 2 - gap * 2;
+    const columns = 6;
+    const gapX = 104;
+    const gapY = 104;
+    const startX = GAME_WIDTH / 2 - (gapX * (columns - 1)) / 2;
+    const startY = 248;
     BUBBLE_STYLES.forEach((style, index) => {
-      const card = this.add.container(startX + index * gap, 286);
-      const bg = this.add.rectangle(0, 0, 98, 124, 0x25385d, 0.92).setStrokeStyle(2, 0x6d82a8, 0.65);
-      const hitArea = this.add.rectangle(0, 0, 106, 132, 0xffffff, 0.001);
-      const glow = this.add.image(0, -22, 'bubble-glow').setDisplaySize(58, 58).setAlpha(0.55);
-      const bubble = this.add.image(0, -22, style.texture).setDisplaySize(44, 44);
-      const name = this.add.text(0, 22, style.name, {
-        fontFamily: 'Microsoft YaHei, sans-serif', fontSize: '14px', color: '#f7fbff', fontStyle: '700',
+      const col = index % columns;
+      const row = Math.floor(index / columns);
+      const card = this.add.container(startX + col * gapX, startY + row * gapY);
+      const bg = this.add.rectangle(0, 0, 92, 96, 0x25385d, 0.92).setStrokeStyle(2, 0x6d82a8, 0.65);
+      const hitArea = this.add.rectangle(0, 0, 100, 104, 0xffffff, 0.001);
+      const glow = this.add.image(0, -21, 'bubble-glow').setDisplaySize(52, 52).setAlpha(0.55);
+      const bubble = this.add.image(0, -21, style.texture).setDisplaySize(38, 38);
+      const name = this.add.text(0, 19, style.name, {
+        fontFamily: 'Microsoft YaHei, sans-serif', fontSize: '13px', color: '#f7fbff', fontStyle: '700',
       }).setOrigin(0.5);
-      const description = this.add.text(0, 46, style.description, {
-        fontFamily: 'Microsoft YaHei, sans-serif', fontSize: '12px', color: '#a7f3b3',
+      const description = this.add.text(0, 39, style.description, {
+        fontFamily: 'Microsoft YaHei, sans-serif', fontSize: '11px', color: '#a7f3b3',
       }).setOrigin(0.5);
       card.add([bg, glow, bubble, name, description, hitArea]);
       hitArea.setInteractive({ useHandCursor: true });
@@ -821,6 +819,92 @@ function createBubbleStyleTextures(graphics) {
   graphics.fillCircle(34, 16, 1.5);
   graphics.fillCircle(32, 34, 2);
   graphics.generateTexture('bubble-galaxy', 48, 48);
+
+  graphics.clear();
+  drawBubbleBase(graphics, 0xffd08a, 0xfff1c7, 0xa85d1e);
+  graphics.fillStyle(0xb86924, 0.82);
+  graphics.fillEllipse(24, 18, 28, 10);
+  graphics.fillStyle(0xfff3c4, 0.8);
+  graphics.fillCircle(17, 30, 3);
+  graphics.fillCircle(28, 33, 2);
+  graphics.lineStyle(2, 0xffffff, 0.56);
+  graphics.strokeEllipse(24, 18, 22, 7);
+  graphics.generateTexture('bubble-pudding', 48, 48);
+
+  graphics.clear();
+  drawBubbleBase(graphics, 0xffe05d, 0xffffb5, 0xb88712);
+  graphics.fillStyle(0xfff7a8, 0.92);
+  graphics.fillCircle(24, 24, 12);
+  graphics.lineStyle(2, 0xffffff, 0.72);
+  graphics.strokeCircle(24, 24, 12);
+  graphics.lineStyle(2, 0xf6b629, 0.9);
+  for (let i = 0; i < 8; i += 1) {
+    const angle = (i * Math.PI) / 4;
+    graphics.lineBetween(24, 24, 24 + Math.cos(angle) * 11, 24 + Math.sin(angle) * 11);
+  }
+  graphics.generateTexture('bubble-lemon', 48, 48);
+
+  graphics.clear();
+  drawBubbleBase(graphics, 0x7fce67, 0xdff7b5, 0x3a7f37);
+  graphics.fillStyle(0xf8f0d8, 0.9);
+  graphics.fillCircle(18, 28, 4);
+  graphics.fillCircle(25, 31, 4);
+  graphics.fillCircle(32, 27, 4);
+  graphics.lineStyle(3, 0x3f8c3f, 0.85);
+  graphics.beginPath();
+  graphics.arc(25, 21, 10, 0.2, 2.9);
+  graphics.strokePath();
+  graphics.generateTexture('bubble-matcha', 48, 48);
+
+  graphics.clear();
+  drawBubbleBase(graphics, 0x7bd7ff, 0xf4fdff, 0x2b78bd);
+  graphics.lineStyle(4, 0xff5aa5, 0.85);
+  graphics.lineBetween(12, 31, 36, 17);
+  graphics.lineStyle(4, 0xffe66d, 0.9);
+  graphics.lineBetween(12, 36, 38, 21);
+  graphics.lineStyle(4, 0x76f0cb, 0.9);
+  graphics.lineBetween(16, 39, 39, 26);
+  graphics.fillStyle(0xffffff, 0.75);
+  graphics.fillCircle(16, 14, 4);
+  graphics.generateTexture('bubble-rainbow', 48, 48);
+
+  graphics.clear();
+  drawBubbleBase(graphics, 0x8a4b2a, 0xd69b6b, 0x3f2116);
+  graphics.lineStyle(4, 0xf4c083, 0.82);
+  graphics.beginPath();
+  graphics.arc(25, 24, 11, -0.3, 4.2);
+  graphics.strokePath();
+  graphics.lineStyle(3, 0x4c2415, 0.72);
+  graphics.beginPath();
+  graphics.arc(23, 25, 6, 1.4, 5.8);
+  graphics.strokePath();
+  graphics.fillStyle(0xfff0d0, 0.7);
+  graphics.fillCircle(16, 14, 3);
+  graphics.generateTexture('bubble-chocolate', 48, 48);
+
+  graphics.clear();
+  drawBubbleBase(graphics, 0x9defff, 0xffffff, 0x2d9ab5);
+  graphics.lineStyle(2, 0xffffff, 0.9);
+  graphics.lineBetween(24, 12, 24, 35);
+  graphics.lineBetween(14, 18, 34, 30);
+  graphics.lineBetween(14, 30, 34, 18);
+  graphics.fillStyle(0xcfffff, 0.8);
+  graphics.fillCircle(24, 23, 4);
+  graphics.fillCircle(17, 15, 2);
+  graphics.fillCircle(33, 33, 2);
+  graphics.generateTexture('bubble-ice', 48, 48);
+
+  graphics.clear();
+  drawBubbleBase(graphics, 0xff9fca, 0xffe1ee, 0xae4775);
+  graphics.fillStyle(0xfff3f8, 0.9);
+  graphics.fillEllipse(24, 18, 7, 12);
+  graphics.fillEllipse(18, 25, 7, 12);
+  graphics.fillEllipse(30, 25, 7, 12);
+  graphics.fillEllipse(22, 30, 7, 11);
+  graphics.fillEllipse(27, 30, 7, 11);
+  graphics.fillStyle(0xffcf58, 0.9);
+  graphics.fillCircle(24, 25, 3);
+  graphics.generateTexture('bubble-sakura', 48, 48);
 
   graphics.clear();
 }
